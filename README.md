@@ -11,7 +11,9 @@
 
 ## Установка
 
-Нужен Rust с Cargo. Python и FFmpeg для запуска не требуются.
+Можно скачать готовый архив для Linux x86_64/aarch64, Windows x86_64 или macOS arm64/x86_64 со страницы [GitHub Releases](https://github.com/Kritile/yandex-music-downloader-rust/releases). Linux-архивы собраны с glibc. Распакуйте архив и запустите `yandex-music-downloader` (`yandex-music-downloader.exe` на Windows).
+
+Для сборки из исходников нужен Rust с Cargo. Python и FFmpeg для запуска не требуются.
 
 ```sh
 git clone https://github.com/Kritile/yandex-music-downloader-rust.git
@@ -24,23 +26,36 @@ yandex-music-downloader --help
 
 ## Авторизация
 
-Программа принимает OAuth-токен через обязательный параметр `--token`. Инструкция по получению токена: [ym.marshal.dev/token](https://ym.marshal.dev/token/#implicit-oauth). Берегите токен и не публикуйте его в логах или скриптах общего доступа.
+Программа принимает OAuth-токен из переменной окружения `YANDEX_MUSIC_TOKEN` или через `--token`. Если заданы оба, приоритет у `--token`. Инструкция по получению токена: [ym.marshal.dev/token](https://ym.marshal.dev/token/#implicit-oauth).
+
+Для ввода без отображения токена и записи его значения в историю Bash:
+
+```bash
+read -rsp 'OAuth token: ' YANDEX_MUSIC_TOKEN
+printf '\n'
+export YANDEX_MUSIC_TOKEN
+yandex-music-downloader --track-id 6705392
+unset YANDEX_MUSIC_TOKEN
+```
+
+Не вводите токен прямо в строке `YANDEX_MUSIC_TOKEN=... yandex-music-downloader ...`: такая строка может сохраниться в истории оболочки. Переменная окружения не показывается в обычном `ps aux`, но доступ к окружению процесса у пользователя с соответствующими правами остаётся возможным.
 
 ## Примеры
 
 ```sh
-yandex-music-downloader --token "<Токен>" --quality 2 --url "https://music.yandex.ru/artist/208167"
-yandex-music-downloader --token "<Токен>" --quality 1 --lyrics-format lrc --url "https://music.yandex.ru/album/294912"
-yandex-music-downloader --token "<Токен>" --url "https://music.yandex.ru/album/11644078/track/6705392"
-yandex-music-downloader --token "<Токен>" --playlist-id "<владелец>/<тип>" --skip-existing
+yandex-music-downloader --quality 2 --url "https://music.yandex.ru/artist/208167"
+yandex-music-downloader --quality 1 --lyrics-format lrc --url "https://music.yandex.ru/album/294912"
+yandex-music-downloader --url "https://music.yandex.ru/album/11644078/track/6705392"
+yandex-music-downloader --playlist-id "<владелец>/<тип>" --skip-existing
 ```
 
 ## Параметры
 
-Источник обязателен: ровно один из `--artist-id`, `--album-id`, `--track-id`, `--playlist-id <владелец>/<тип>` или `-u, --url`. Поддерживаются ссылки на страницы исполнителя, альбома, трека и плейлиста. `--token` обязателен.
+Источник обязателен: ровно один из `--artist-id`, `--album-id`, `--track-id`, `--playlist-id <владелец>/<тип>` или `-u, --url`. Поддерживаются ссылки на страницы исполнителя, альбома, трека и плейлиста. Токен обязателен; его можно передать через `YANDEX_MUSIC_TOKEN` или `--token`.
 
 | Параметр | Назначение | По умолчанию |
 | --- | --- | --- |
+| `--token <токен>` | OAuth-токен; имеет приоритет над `YANDEX_MUSIC_TOKEN` | из окружения |
 | `--quality 0..2` | Качество аудио | `0` |
 | `--skip-existing` | Пропускать файл, если уже есть MP3, FLAC или M4A с тем же базовым путём | выключено |
 | `--lyrics-format none\|text\|lrc` | Без текста, текст в теге или отдельный LRC; для LRC без синхронного текста используется обычный текст | `none` |
