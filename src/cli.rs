@@ -71,7 +71,7 @@ pub struct Cli {
     pub dir: PathBuf,
     #[arg(long, default_value = DEFAULT_PATTERN)]
     pub path_pattern: String,
-    #[arg(long)]
+    #[arg(long, env = "YANDEX_MUSIC_TOKEN", hide_env_values = true)]
     pub token: String,
 }
 

@@ -42,6 +42,7 @@ pub fn lyrics_signature(timestamp: u64, track_id: &str) -> Result<String> {
 
 pub struct MusicClient {
     http: Client,
+    base_url: url::Url,
     token: String,
     tries: u32,
     retry_delay: Duration,
@@ -61,6 +62,7 @@ impl MusicClient {
                 .timeout(Duration::from_secs(timeout))
                 .user_agent("yandex-music-downloader/4.0.0")
                 .build()?,
+            base_url: url::Url::parse(BASE)?,
             token,
             tries,
             retry_delay: Duration::from_secs(retry_delay),
@@ -68,11 +70,33 @@ impl MusicClient {
         })
     }
 
+    /// Set an alternate API endpoint, primarily for local integration tests.
+    /// Plain HTTP is accepted only for loopback addresses.
+    pub fn with_api_base_url(mut self, base_url: &str) -> Result<Self> {
+        let parsed = url::Url::parse(base_url)?;
+        let loopback = match parsed.host() {
+            Some(url::Host::Ipv4(address)) => address.is_loopback(),
+            Some(url::Host::Ipv6(address)) => address.is_loopback(),
+            _ => false,
+        };
+        if (parsed.scheme() != "https" && !(parsed.scheme() == "http" && loopback))
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+            || parsed.query().is_some()
+            || parsed.fragment().is_some()
+        {
+            bail!("Некорректный базовый URL API");
+        }
+        self.base_url = parsed;
+        Ok(self)
+    }
+
     fn request_bytes(
         &self,
         method: reqwest::Method,
         url: &str,
         params: &[(&str, String)],
+        authenticated: bool,
     ) -> Result<Vec<u8>> {
         let mut attempt = 0;
         loop {
@@ -80,7 +104,7 @@ impl MusicClient {
                 eprintln!("{} {url} (попытка {})", method, attempt + 1);
             }
             let mut builder = self.http.request(method.clone(), url);
-            if url::Url::parse(url)?.host_str() == Some("api.music.yandex.net") {
+            if authenticated {
                 builder = builder
                     .header("Authorization", format!("OAuth {}", self.token))
                     .header("X-Yandex-Music-Client", "YandexMusicAndroid/24023621");
@@ -139,8 +163,9 @@ impl MusicClient {
         path: &str,
         params: &[(&str, String)],
     ) -> Result<Value> {
-        let url = format!("{BASE}{path}");
-        let envelope: Value = serde_json::from_slice(&self.request_bytes(method, &url, params)?)?;
+        let url = self.base_url.join(path)?.to_string();
+        let envelope: Value =
+            serde_json::from_slice(&self.request_bytes(method, &url, params, true)?)?;
         if let Some(error) = envelope.get("error") {
             bail!("Ошибка API: {error}");
         }
@@ -159,7 +184,7 @@ impl MusicClient {
         if parsed.scheme() != "https" {
             bail!("Ожидается HTTPS-ссылка для загрузки");
         }
-        self.request_bytes(reqwest::Method::GET, url, &[])
+        self.request_bytes(reqwest::Method::GET, url, &[], false)
     }
 
     pub fn tracks(&self, ids: &[String]) -> Result<Vec<Track>> {
@@ -365,7 +390,12 @@ mod tests {
         });
         let client = MusicClient::new("test".into(), 2, 1, 0, false).unwrap();
         let response = client
-            .request_bytes(reqwest::Method::GET, &format!("http://{address}"), &[])
+            .request_bytes(
+                reqwest::Method::GET,
+                &format!("http://{address}"),
+                &[],
+                false,
+            )
             .unwrap();
         assert_eq!(response, b"ok");
         server.join().unwrap();

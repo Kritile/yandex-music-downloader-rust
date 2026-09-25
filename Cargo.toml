@@ -9,7 +9,7 @@ description = "Загрузчик музыки с сервиса Яндекс.М
 aes = "0.8"
 anyhow = "1"
 base64 = "0.22"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 ctr = "0.9"
 hmac = "0.12"
 lofty = "0.24"
